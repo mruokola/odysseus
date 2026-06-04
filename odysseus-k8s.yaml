@@ -1,0 +1,367 @@
+---
+# ConfigMap for Odysseus Environment Variables
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: odysseus-config
+data:
+  LLM_HOST: localhost
+  LLM_HOSTS: ""
+  OLLAMA_BASE_URL: ""
+  RESEARCH_LLM_ENDPOINT: ""
+  SEARXNG_INSTANCE: http://searxng:8080
+  CHROMADB_HOST: chromadb
+  CHROMADB_PORT: "8000"
+  DATABASE_URL: sqlite:///./data/app.db
+  AUTH_ENABLED: "true"
+  LOCALHOST_BYPASS: "false"
+  ODYSSEUS_ADMIN_USER: "admin"
+  ALLOWED_ORIGINS: "http://localhost,http://127.0.0.1"
+  SECURE_COOKIES: "false"
+  EMBEDDING_URL: ""
+  EMBEDDING_MODEL: ""
+  FASTEMBED_MODEL: "sentence-transformers/all-MiniLM-L6-v2"
+  FASTEMBED_CACHE_PATH: ""
+  CLEANUP_INTERVAL_HOURS: "24"
+  ODYSSEUS_INPROCESS_POLLERS: "1"
+  ODYSSEUS_INPROCESS_TASKS: "1"
+  ODYSSEUS_SCRIPT_HOST: "localhost"
+
+---
+# Secret for Odysseus Sensitive Variables
+apiVersion: v1
+kind: Secret
+metadata:
+  name: odysseus-secrets
+type: Opaque
+stringData:
+  OPENAI_API_KEY: ""
+  HF_TOKEN: ""
+  HUGGING_FACE_HUB_TOKEN: ""
+  ODYSSEUS_ADMIN_PASSWORD: ""
+  DATA_BRAVE_API_KEY: ""
+  GOOGLE_API_KEY: ""
+  GOOGLE_PSE_CX: ""
+  TAVILY_API_KEY: ""
+  SERPER_API_KEY: ""
+
+---
+# ConfigMap for Searxng Template
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: searxng-template
+data:
+  settings.yml.template: |
+    use_default_settings: true
+    
+    server:
+      secret_key: "__SEARXNG_SECRET__"
+    
+    search:
+      formats:
+        - html
+        - json
+
+---
+# PersistentVolumeClaims
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: odysseus-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: chromadb-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: searxng-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ntfy-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+
+---
+# Services
+apiVersion: v1
+kind: Service
+metadata:
+  name: odysseus
+spec:
+  selector:
+    app: odysseus
+  ports:
+    - protocol: TCP
+      port: 7000
+      targetPort: 7000
+  type: ClusterIP # Change to NodePort or LoadBalancer if external access is needed
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: chromadb
+spec:
+  selector:
+    app: chromadb
+  ports:
+    - protocol: TCP
+      port: 8000
+      targetPort: 8000
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: searxng
+spec:
+  selector:
+    app: searxng
+  ports:
+    - protocol: TCP
+      port: 8080
+      targetPort: 8080
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ntfy
+spec:
+  selector:
+    app: ntfy
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 80
+
+---
+# Deployments
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: odysseus
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: odysseus
+  template:
+    metadata:
+      labels:
+        app: odysseus
+    spec:
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      initContainers:
+        # Create subdirectories in the PVC with correct permissions
+        - name: init-dirs
+          image: busybox
+          command: ['sh', '-c', 'mkdir -p /mnt/data /mnt/logs /mnt/data/ssh /mnt/data/huggingface /mnt/data/local && chown -R 1000:1000 /mnt/data /mnt/logs']
+          volumeMounts:
+            - name: odysseus-data
+              mountPath: /mnt
+      containers:
+        - name: odysseus
+          image: odysseus:latest # Must build and push to registry or set imagePullPolicy: Never for local
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 7000
+          envFrom:
+            - configMapRef:
+                name: odysseus-config
+            - secretRef:
+                name: odysseus-secrets
+          env:
+            - name: PUID
+              value: "1000"
+            - name: PGID
+              value: "1000"
+          resources:
+            limits:
+              # Requires k8s AMD GPU device plugin (https://github.com/RadeonOpenCompute/k8s-device-plugin)
+              amd.com/gpu: 1 
+          volumeMounts:
+            - name: odysseus-data
+              mountPath: /app/data
+              subPath: data
+            - name: odysseus-data
+              mountPath: /app/logs
+              subPath: logs
+            - name: odysseus-data
+              mountPath: /app/.ssh
+              subPath: data/ssh
+            - name: odysseus-data
+              mountPath: /app/.cache/huggingface
+              subPath: data/huggingface
+            - name: odysseus-data
+              mountPath: /app/.local
+              subPath: data/local
+      volumes:
+        - name: odysseus-data
+          persistentVolumeClaim:
+            claimName: odysseus-pvc
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: chromadb
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: chromadb
+  template:
+    metadata:
+      labels:
+        app: chromadb
+    spec:
+      containers:
+        - name: chromadb
+          image: docker.io/chromadb/chroma:latest
+          ports:
+            - containerPort: 8000
+          env:
+            - name: ANONYMIZED_TELEMETRY
+              value: "FALSE"
+          volumeMounts:
+            - name: chromadb-data
+              mountPath: /chroma/chroma
+      volumes:
+        - name: chromadb-data
+          persistentVolumeClaim:
+            claimName: chromadb-pvc
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: searxng
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: searxng
+  template:
+    metadata:
+      labels:
+        app: searxng
+    spec:
+      containers:
+        - name: searxng
+          image: docker.io/searxng/searxng:2026.5.31-7159b8aed
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -eu
+              if [ ! -s /etc/searxng/settings.yml ] || grep -q 'odysseus-local-searxng-json-2026-05-30\|__SEARXNG_SECRET__' /etc/searxng/settings.yml; then
+                secret="${SEARXNG_SECRET:-}"
+                if [ -z "$secret" ]; then
+                  secret="$(python -c 'import secrets; print(secrets.token_urlsafe(48))')"
+                fi
+                sed "s|__SEARXNG_SECRET__|$secret|g" /tmp/searxng-settings.yml.template > /etc/searxng/settings.yml
+              fi
+              exec /usr/local/searxng/entrypoint.sh
+          ports:
+            - containerPort: 8080
+          env:
+            - name: SEARXNG_BASE_URL
+              value: "http://localhost:8080/"
+            - name: SEARXNG_SECRET
+              value: "" # Can be overridden here or populated dynamically by the entrypoint
+          securityContext:
+            capabilities:
+              drop: ["ALL"]
+              add: ["CHOWN", "SETGID", "SETUID", "DAC_OVERRIDE"]
+          livenessProbe:
+            exec:
+              command: ["python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/', timeout=5).read(1)"]
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            failureThreshold: 20
+          readinessProbe:
+            exec:
+              command: ["python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/', timeout=5).read(1)"]
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            failureThreshold: 20
+          volumeMounts:
+            - name: searxng-data
+              mountPath: /etc/searxng
+            - name: searxng-template
+              mountPath: /tmp/searxng-settings.yml.template
+              subPath: settings.yml.template
+              readOnly: true
+      volumes:
+        - name: searxng-data
+          persistentVolumeClaim:
+            claimName: searxng-pvc
+        - name: searxng-template
+          configMap:
+            name: searxng-template
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ntfy
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ntfy
+  template:
+    metadata:
+      labels:
+        app: ntfy
+    spec:
+      containers:
+        - name: ntfy
+          image: docker.io/binwiederhier/ntfy
+          command: ["serve"]
+          ports:
+            - containerPort: 80
+          env:
+            - name: NTFY_BASE_URL
+              value: "http://ntfy:80"
+          volumeMounts:
+            - name: ntfy-cache
+              mountPath: /var/cache/ntfy
+      volumes:
+        - name: ntfy-cache
+          persistentVolumeClaim:
+            claimName: ntfy-pvc
