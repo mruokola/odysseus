@@ -498,7 +498,7 @@ spec:
       containers:
         - name: ntfy
           image: docker.io/binwiederhier/ntfy
-          command: ["serve"]
+          args: ["serve"]
           ports:
             - containerPort: 80
           env:
