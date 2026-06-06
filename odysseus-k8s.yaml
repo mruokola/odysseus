@@ -29,6 +29,7 @@ spec:
               operator: In
               values:
                 - limppukisse
+---
 apiVersion: v1
 kind: PersistentVolume
 metadata:
@@ -51,6 +52,7 @@ spec:
               operator: In
               values:
                 - limppukisse
+---
 apiVersion: v1
 kind: PersistentVolume
 metadata:
@@ -73,6 +75,7 @@ spec:
               operator: In
               values:
                 - limppukisse
+---
 apiVersion: v1
 kind: PersistentVolume
 metadata:
@@ -95,6 +98,7 @@ spec:
               operator: In
               values:
                 - limppukisse
+---
 apiVersion: v1
 kind: Namespace
 metadata:
@@ -103,7 +107,6 @@ metadata:
     pod-security.kubernetes.io/enforce: baseline
     pod-security.kubernetes.io/warn: baseline
     pod-security.kubernetes.io/audit: baseline
----
 ---
 # ConfigMap for Odysseus Environment Variables
 apiVersion: v1
