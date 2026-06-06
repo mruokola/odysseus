@@ -348,7 +348,7 @@ spec:
           resources:
             limits:
               # Requires k8s AMD GPU device plugin (https://github.com/RadeonOpenCompute/k8s-device-plugin)
-              amd.com/gpu: 1 
+              amd.com/gpu: "1" 
           volumeMounts:
             - name: odysseus-data
               mountPath: /app/data
