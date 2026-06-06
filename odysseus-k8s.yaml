@@ -303,6 +303,8 @@ metadata:
   name: odysseus
 spec:
   replicas: 1
+  strategy:
+    type: Recreate # Required for single-GPU workloads to kill the old pod before scheduling the new one
   selector:
     matchLabels:
       app: odysseus
@@ -378,6 +380,8 @@ metadata:
   name: chromadb
 spec:
   replicas: 1
+  strategy:
+    type: Recreate # Required for single-GPU workloads to kill the old pod before scheduling the new one
   selector:
     matchLabels:
       app: chromadb
@@ -412,6 +416,8 @@ metadata:
   name: searxng
 spec:
   replicas: 1
+  strategy:
+    type: Recreate # Required for single-GPU workloads to kill the old pod before scheduling the new one
   selector:
     matchLabels:
       app: searxng
@@ -485,6 +491,8 @@ metadata:
   name: ntfy
 spec:
   replicas: 1
+  strategy:
+    type: Recreate # Required for single-GPU workloads to kill the old pod before scheduling the new one
   selector:
     matchLabels:
       app: ntfy
