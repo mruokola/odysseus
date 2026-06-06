@@ -319,6 +319,10 @@ spec:
         # Create subdirectories in the PVC with correct permissions
         - name: init-dirs
           image: busybox
+          securityContext:
+            runAsUser: 0
+            runAsGroup: 0
+            runAsNonRoot: false
           command: ['sh', '-c', 'mkdir -p /mnt/data /mnt/logs /mnt/data/ssh /mnt/data/huggingface /mnt/data/local && chown -R 1000:1000 /mnt/data /mnt/logs']
           volumeMounts:
             - name: odysseus-data
@@ -438,6 +442,8 @@ spec:
           env:
             - name: SEARXNG_BASE_URL
               value: "http://localhost:8080/"
+            - name: SEARXNG_PORT
+              value: "8080"
             - name: SEARXNG_SECRET
               value: "" # Can be overridden here or populated dynamically by the entrypoint
           securityContext:
@@ -498,6 +504,8 @@ spec:
           env:
             - name: NTFY_BASE_URL
               value: "http://ntfy:80"
+            - name: NTFY_LISTEN_HTTP
+              value: ":80"
           volumeMounts:
             - name: ntfy-cache
               mountPath: /var/cache/ntfy
