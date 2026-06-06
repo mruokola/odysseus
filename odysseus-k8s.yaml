@@ -1,8 +1,18 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: odysseus
+  labels:
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/warn: baseline
+    pod-security.kubernetes.io/audit: baseline
+---
 ---
 # ConfigMap for Odysseus Environment Variables
 apiVersion: v1
 kind: ConfigMap
 metadata:
+  namespace: odysseus
   name: odysseus-config
 data:
   LLM_HOST: localhost
@@ -32,6 +42,7 @@ data:
 apiVersion: v1
 kind: Secret
 metadata:
+  namespace: odysseus
   name: odysseus-secrets
 type: Opaque
 stringData:
@@ -50,6 +61,7 @@ stringData:
 apiVersion: v1
 kind: ConfigMap
 metadata:
+  namespace: odysseus
   name: searxng-template
 data:
   settings.yml.template: |
@@ -68,55 +80,64 @@ data:
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
+  namespace: odysseus
   name: odysseus-pvc
 spec:
+  storageClassName: local-storage
   accessModes:
     - ReadWriteOnce
   resources:
     requests:
-      storage: 10Gi
+      storage: 100Gi
 
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
+  namespace: odysseus
   name: chromadb-pvc
 spec:
+  storageClassName: local-storage
   accessModes:
     - ReadWriteOnce
   resources:
     requests:
-      storage: 5Gi
+      storage: 100Gi
 
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
+  namespace: odysseus
   name: searxng-pvc
 spec:
+  storageClassName: local-storage
   accessModes:
     - ReadWriteOnce
   resources:
     requests:
-      storage: 1Gi
+      storage: 100Gi
 
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
+  namespace: odysseus
   name: ntfy-pvc
 spec:
+  storageClassName: local-storage
   accessModes:
     - ReadWriteOnce
   resources:
     requests:
-      storage: 1Gi
+      storage: 100Gi
 
 ---
 # Services
 apiVersion: v1
 kind: Service
 metadata:
+  namespace: odysseus
   name: odysseus
 spec:
   selector:
@@ -131,6 +152,7 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
+  namespace: odysseus
   name: chromadb
 spec:
   selector:
@@ -144,6 +166,7 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
+  namespace: odysseus
   name: searxng
 spec:
   selector:
@@ -157,6 +180,7 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
+  namespace: odysseus
   name: ntfy
 spec:
   selector:
@@ -171,6 +195,7 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
+  namespace: odysseus
   name: odysseus
 spec:
   replicas: 1
@@ -194,6 +219,8 @@ spec:
           volumeMounts:
             - name: odysseus-data
               mountPath: /mnt
+      nodeSelector:
+        kubernetes.io/hostname: limppukisse
       containers:
         - name: odysseus
           image: odysseus:latest # Must build and push to registry or set imagePullPolicy: Never for local
@@ -239,6 +266,7 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
+  namespace: odysseus
   name: chromadb
 spec:
   replicas: 1
@@ -250,6 +278,8 @@ spec:
       labels:
         app: chromadb
     spec:
+      nodeSelector:
+        kubernetes.io/hostname: limppukisse
       containers:
         - name: chromadb
           image: docker.io/chromadb/chroma:latest
@@ -270,6 +300,7 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
+  namespace: odysseus
   name: searxng
 spec:
   replicas: 1
@@ -281,6 +312,8 @@ spec:
       labels:
         app: searxng
     spec:
+      nodeSelector:
+        kubernetes.io/hostname: limppukisse
       containers:
         - name: searxng
           image: docker.io/searxng/searxng:2026.5.31-7159b8aed
@@ -338,6 +371,7 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
+  namespace: odysseus
   name: ntfy
 spec:
   replicas: 1
@@ -349,6 +383,8 @@ spec:
       labels:
         app: ntfy
     spec:
+      nodeSelector:
+        kubernetes.io/hostname: limppukisse
       containers:
         - name: ntfy
           image: docker.io/binwiederhier/ntfy
@@ -365,3 +401,7 @@ spec:
         - name: ntfy-cache
           persistentVolumeClaim:
             claimName: ntfy-pvc
+---
+# We don't redefine the StorageClass or PersistentVolumes here as you have already verified they exist.
+# Make sure your PersistentVolumes (local-storage-node-1, etc.) have been applied to the cluster
+# and that their storage capacity is set to >= 100Gi, or Kubernetes will refuse to bind these PVCs.
