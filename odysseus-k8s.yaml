@@ -1,3 +1,100 @@
+---
+# ==========================================
+# STATIC PERSISTENT VOLUMES (Node: limppukisse)
+# ==========================================
+# Since we are using static local provisioning without a dynamic provisioner, 
+# we must explicitly declare the physical volumes that satisfy the PVCs below.
+# Ensure these directories exist on the host node 'limppukisse'.
+---
+# Provide example to create enough PVs on node 1
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: local-storage-node-1-odysseus
+spec:
+  capacity:
+    storage: 100Gi
+  volumeMode: Filesystem
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: local-storage
+  local:
+    path: /var/mnt/local-storage/odysseus
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values:
+                - limppukisse
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: local-storage-node-1-chromadb
+spec:
+  capacity:
+    storage: 100Gi
+  volumeMode: Filesystem
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: local-storage
+  local:
+    path: /var/mnt/local-storage/chromadb
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values:
+                - limppukisse
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: local-storage-node-1-searxng
+spec:
+  capacity:
+    storage: 100Gi
+  volumeMode: Filesystem
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: local-storage
+  local:
+    path: /var/mnt/local-storage/searxng
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values:
+                - limppukisse
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: local-storage-node-1-ntfy
+spec:
+  capacity:
+    storage: 100Gi
+  volumeMode: Filesystem
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: local-storage
+  local:
+    path: /var/mnt/local-storage/ntfy
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values:
+                - limppukisse
 apiVersion: v1
 kind: Namespace
 metadata:
