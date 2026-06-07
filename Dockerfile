@@ -30,7 +30,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # Create data directory (mount a volume here for persistence)
-RUN mkdir -p data logs services/cache/search
+RUN mkdir -p data logs services/cache/search && chown -R 1000:1000 /app
 
 # Entrypoint that drops to PUID/PGID (default 1000:1000) and repairs
 # ownership on the bind-mounted /app/data and /app/logs. Without this,

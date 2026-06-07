@@ -17,34 +17,36 @@ PGID="${PGID:-1000}"
 # Reuse an existing matching group/user if the host's UID/GID already
 # corresponds to one in /etc/passwd (e.g. when the image is rebuilt
 # and "odysseus" already exists at the same id). Otherwise create.
-if ! getent group "$PGID" >/dev/null 2>&1; then
-    groupadd -g "$PGID" odysseus
-fi
-if ! getent passwd "$PUID" >/dev/null 2>&1; then
-    useradd -u "$PUID" -g "$PGID" -M -s /bin/sh -d /app odysseus
-fi
-
-# Repair ownership on every writable path the app touches at runtime.
-#
-# Bind-mounted dirs (/app/data, /app/logs) are the obvious ones, but
-# the app ALSO writes inside the image's own source tree at runtime:
-#   - services/cache/{search,content}/*  (search cache LRU)
-#   - services/search_analytics.json
-#   - services/search_engine_error.log
-#   - services/tts cache, etc.
-# These dirs were created as root during `docker build`, so dropping
-# to PUID:PGID would otherwise crash on the first import that tries
-# to mkdir them. Chown the whole /app tree — fast (<1s on this size)
-# and idempotent via the `-not -uid` filter so we only touch files
-# that need fixing.
-for dir in /app /app/data /app/logs; do
-    if [ -d "$dir" ]; then
-        # `find ... -not -uid` keeps this O(touched-files), not
-        # O(everything), so terabyte-sized maildirs don't slow startup.
-        find "$dir" -not -uid "$PUID" -print0 2>/dev/null \
-            | xargs -0 -r chown "$PUID:$PGID" 2>/dev/null || true
+if [ "$(id -u)" = "0" ]; then
+    if ! getent group "$PGID" >/dev/null 2>&1; then
+        groupadd -g "$PGID" odysseus
     fi
-done
+    if ! getent passwd "$PUID" >/dev/null 2>&1; then
+        useradd -u "$PUID" -g "$PGID" -M -s /bin/sh -d /app odysseus
+    fi
+
+    # Repair ownership on every writable path the app touches at runtime.
+    #
+    # Bind-mounted dirs (/app/data, /app/logs) are the obvious ones, but
+    # the app ALSO writes inside the image's own source tree at runtime:
+    #   - services/cache/{search,content}/*  (search cache LRU)
+    #   - services/search_analytics.json
+    #   - services/search_engine_error.log
+    #   - services/tts cache, etc.
+    # These dirs were created as root during `docker build`, so dropping
+    # to PUID:PGID would otherwise crash on the first import that tries
+    # to mkdir them. Chown the whole /app tree — fast (<1s on this size)
+    # and idempotent via the `-not -uid` filter so we only touch files
+    # that need fixing.
+    for dir in /app /app/data /app/logs; do
+        if [ -d "$dir" ]; then
+            # `find ... -not -uid` keeps this O(touched-files), not
+            # O(everything), so terabyte-sized maildirs don't slow startup.
+            find "$dir" -not -uid "$PUID" -print0 2>/dev/null \
+                | xargs -0 -r chown "$PUID:$PGID" 2>/dev/null || true
+        fi
+    done
+fi
 
 # Cookbook installs vllm/etc. via `pip install --user`, which pulls
 # nvidia-cuda-* wheels into /app/.local but does not set CUDA_HOME or
@@ -83,9 +85,17 @@ export PATH="/app/.local/bin:$PATH"
 # Run first-time setup as the app user so data/ files get the right ownership.
 # setup.py is idempotent — skips auth.json / .env if they already exist.
 # || true so a setup failure never prevents the container from starting.
-gosu "$PUID:$PGID" python /app/setup.py || true
+if [ "$(id -u)" = "0" ]; then
+    gosu "$PUID:$PGID" python /app/setup.py || true
+else
+    python /app/setup.py || true
+fi
 
 # Drop root and run the actual app. `gosu` is preferred over `su` /
 # `sudo` because it cleans up the process tree (no extra shell layer)
 # so signals (SIGTERM from `docker stop`) reach uvicorn directly.
-exec gosu "$PUID:$PGID" "$@"
+if [ "$(id -u)" = "0" ]; then
+    exec gosu "$PUID:$PGID" "$@"
+else
+    exec "$@"
+fi
